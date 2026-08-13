@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>รายละเอียดการคำนวณ Convolution — SIGSCOPE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1210; --panel:#111a17; --border:#2a3b34;
+    --f-color:#6effb8; --g-color:#ffb84d; --conv-color:#7fb8ff;
+    --text:#e8f5ee; --muted:#7fa396; --muted2:#5c8a76; --err:#ff8a8a;
+    --mono:'IBM Plex Mono',monospace; --thai:'IBM Plex Sans Thai',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--thai);padding:28px 14px;}
+  .container{max-width:900px;margin:0 auto;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:26px;margin-bottom:18px;}
+  h1{font-family:var(--mono);color:var(--conv-color);font-size:22px;margin:0 0 6px;}
+  .subtitle{color:var(--muted);font-size:13px;margin-bottom:18px;}
+  .eqBox{background:#041209;border:1px solid #3d6b57;border-radius:8px;padding:14px 16px;font-family:var(--mono);font-size:15px;margin-bottom:10px;}
+  .eqBox .f{color:var(--f-color);} .eqBox .g{color:var(--g-color);}
+  .formula{font-family:var(--mono);font-size:14px;color:var(--conv-color);margin:14px 0;text-align:center;}
+  .summary{font-family:var(--mono);font-size:13px;background:#152233;border:1px solid #3a5a8a;border-radius:8px;padding:12px 16px;color:#bcd6ff;margin-bottom:8px;}
+  .bpRow{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+  .bpRow b{color:var(--text);}
+  .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:14px;}
+  .knobGroup{display:flex;flex-direction:column;gap:4px;}
+  .knobLabel{font-family:var(--mono);font-size:10.5px;color:var(--muted2);letter-spacing:.05em;text-transform:uppercase;}
+  input[type=number]{width:100px;background:#0e1815;border:1px solid var(--border);border-radius:5px;color:var(--text);
+    font-family:var(--mono);font-size:13px;padding:7px 8px;}
+  .recalcBtn{background:#152233;border:1px solid #3a5a8a;color:var(--conv-color);font-family:var(--mono);font-size:12.5px;font-weight:600;
+    border-radius:6px;padding:10px 16px;cursor:pointer;letter-spacing:.03em;height:34px;}
+  .recalcBtn:hover{border-color:var(--conv-color);}
+
+  .caseBox{background:#182420;border-radius:8px;padding:18px 20px;margin-bottom:14px;border-left:4px solid var(--conv-color);}
+  .caseBox h3{color:var(--conv-color);margin:0 0 8px;font-family:var(--mono);font-size:15px;}
+  .caseRange{font-family:var(--mono);font-size:13px;color:#ffd699;margin-bottom:10px;}
+  .caseEq{font-family:var(--mono);font-size:16px;background:#041209;border:1px solid #223129;border-radius:6px;padding:10px 14px;color:#dff7ea;}
+  .caseNote{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;}
+  .badge.exact{background:#173124;color:#6effb8;border:1px solid #3d6b57;}
+  .badge.approx{background:#2a2412;color:#ffb84d;border:1px solid #8a6a3a;}
+  .badge.zero{background:#1a1a1a;color:#888;border:1px solid #333;}
+
+  .backLink{display:inline-block;margin-top:6px;font-family:var(--mono);font-size:12.5px;color:#9fd8bd;text-decoration:none;border:1px solid var(--border);padding:8px 14px;border-radius:6px;}
+  .backLink:hover{border-color:#6effb8;}
+
+  .footNote{font-size:12px;color:var(--muted2);margin-top:16px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="panel">
+    <h1>🔍 รายละเอียดการคำนวณ Convolution แยกตาม Case</h1>
+    <div class="subtitle">y(t) = (f * g)(t) = ∫ f(τ)·g(t−τ) dτ — ระบบหาจุดหักมุม (breakpoints) ของสัญญาณทั้งสอง แล้วแบ่งแกน t ออกเป็นช่วงย่อยตามจุดตัดที่เกิดขึ้นจริง</div>
+
+    <div class="eqBox">
+      <div><span class="f">f(t) =</span> <span id="displayF">...</span></div>
+      <div style="margin-top:6px;"><span class="g">g(t) =</span> <span id="displayG">...</span></div>
+    </div>
+
+    <div id="bpInfo"></div>
+    <div id="summary" class="summary"></div>
+
+    <div class="controls">
+      <div class="knobGroup">
+        <label class="knobLabel">τ integration min</label>
+        <input id="tauMin" type="number" value="-10" step="1" />
+      </div>
+      <div class="knobGroup">
+        <label class="knobLabel">τ integration max</label>
+        <input id="tauMax" type="number" value="10" step="1" />
+      </div>
+      <button class="recalcBtn" id="recalc">↻ คำนวณใหม่</button>
+    </div>
+    <div class="footNote">ช่วง τ ด้านบนคือโดเมนที่ถือว่า f(t) และ g(t) "มีค่า" อยู่จริง (นอกช่วงนี้ระบบจะไม่คิด) ปรับให้ครอบคลุมพอสมควรถ้าสัญญาณของคุณกว้างกว่าค่าเริ่มต้น</div>
+  </div>
+
+  <div id="cases"></div>
+
+  <div class="panel footNote">
+    <b>วิธีอ่านผลลัพธ์:</b><br>
+    • แต่ละ "case" คือช่วง t ที่รูปแบบการซ้อนทับ (overlap) ระหว่าง f(τ) และ g(t−τ) คงที่ ทำให้สมการอินทิเกรตในช่วงนั้นเป็นสมการเดียวตลอด<br>
+    • ป้าย <span class="badge exact">FIT</span> หมายถึงระบบหาสมการพหุนามของ t ที่ลากผ่านจุดตัวอย่างได้แม่นยำ (คลาดเคลื่อนน้อยกว่า 0.3%) ซึ่งใช้ได้กับสัญญาณที่สร้างจาก u, r, rect, tri เท่านั้น — ปัดเศษสัมประสิทธิ์ไว้ที่ 3 ตำแหน่ง อาจมีคลาดเคลื่อนเล็กน้อยจากการอินทิเกรตเชิงตัวเลข<br>
+    • ป้าย <span class="badge approx">ตัวเลขเท่านั้น</span> หมายถึงสมการมีฟังก์ชันที่ไม่ใช่พหุนามในช่วงนั้น (เช่น sin, cos, exp) ระบบจะแสดงค่าอินทิเกรตเชิงตัวเลขแทนสมการปิดรูปแบบ — ให้ผู้เรียนอินทิเกรตด้วยมือเพื่อความแม่นยำ 100%<br>
+    • ทั้งหมดนี้เป็นการคำนวณเชิงตัวเลขที่ช่วยยืนยันคำตอบ ไม่ใช่ระบบพีชคณิตสัญลักษณ์ (CAS) เต็มรูปแบบ ควรใช้ตรวจทานงานที่ทำบนกระดาษ ไม่ใช่แหล่งคำตอบสุดท้าย
+  </div>
+
+  <a class="backLink" href="javascript:window.close()">← ปิดหน้าต่างนี้</a>
+
+</div>
+
+<script>
+/* ---------------- custom signal functions (must match index.html) ---------------- */
+const CUSTOM_FNS = {
+  u:    (x) => (x >= 0 ? 1 : 0),
+  r:    (x) => (x >= 0 ? x : 0),
+  rect: (x, w=1) => (Math.abs(x) < w/2 ? 1 : 0),
+  tri:  (x, w=1) => (Math.abs(x) < w ? 1 - Math.abs(x)/w : 0),
+  sign: (x) => (x > 0 ? 1 : x < 0 ? -1 : 0),
+};
+function compile(expr){ return math.parse(expr).compile(); }
+function round6(x){ return Math.round(x*1e6)/1e6; }
+
+/* ---------------- breakpoint extraction ---------------- */
+function extractShift(argExpr){
+  try{
+    const code = compile(argExpr);
+    const v0 = code.evaluate({...CUSTOM_FNS, t:0});
+    const v1 = code.evaluate({...CUSTOM_FNS, t:1});
+    const slope = v1 - v0;
+    if(Math.abs(slope - 1) < 1e-9) return -v0;
+    return null;
+  }catch(e){ return null; }
+}
+function evalConst(expr){
+  try{ return compile(expr).evaluate({...CUSTOM_FNS, t:0}); }catch(e){ return null; }
+}
+function extractBreakpoints(expr){
+  const bps = new Set();
+  const re = /\b(u|r|rect|tri)\s*\(([^()]*)\)/g;
+  let m;
+  while((m = re.exec(expr))){
+    const fn = m[1];
+    const args = m[2].split(',').map(s=>s.trim());
+    const shift = extractShift(args[0]);
+    if(shift === null) continue;
+    if(fn === 'u' || fn === 'r'){
+      bps.add(round6(shift));
+    } else if(fn === 'rect'){
+      const w = args[1] !== undefined ? evalConst(args[1]) : 1;
+      if(w !== null){ bps.add(round6(shift - w/2)); bps.add(round6(shift + w/2)); }
+    } else if(fn === 'tri'){
+      const w = args[1] !== undefined ? evalConst(args[1]) : 1;
+      if(w !== null){ bps.add(round6(shift - w)); bps.add(round6(shift)); bps.add(round6(shift + w)); }
+    }
+  }
+  return [...bps].sort((a,b)=>a-b);
+}
+function computeCaseIntervals(bpsF, bpsG){
+  const critical = new Set();
+  for(const a of bpsF) for(const b of bpsG) critical.add(round6(a+b));
+  const sorted = [...critical].sort((a,b)=>a-b);
+  const intervals = [];
+  if(sorted.length === 0){ intervals.push({lo:-Infinity, hi:Infinity}); return intervals; }
+  intervals.push({lo:-Infinity, hi:sorted[0]});
+  for(let i=0;i<sorted.length-1;i++) intervals.push({lo:sorted[i], hi:sorted[i+1]});
+  intervals.push({lo:sorted[sorted.length-1], hi:Infinity});
+  return intervals;
+}
+
+/* ---------------- numeric convolution y(t) via trapezoid over tau ---------------- */
+function convAt(codeF, codeG, t, tauMin, tauMax, n){
+  const dTau = (tauMax-tauMin)/n;
+  let sum=0;
+  for(let i=0;i<=n;i++){
+    const tau = tauMin + i*dTau;
+    let fv, gv;
+    try{ fv = codeF.evaluate({...CUSTOM_FNS, t: tau}); if(!Number.isFinite(fv)) fv=0; }catch(e){ fv=0; }
+    try{ gv = codeG.evaluate({...CUSTOM_FNS, t: t-tau}); if(!Number.isFinite(gv)) gv=0; }catch(e){ gv=0; }
+    const w = (i===0||i===n)?0.5:1;
+    sum += w*fv*gv;
+  }
+  return sum*dTau;
+}
+
+/* ---------------- least-squares polynomial fit ---------------- */
+function solveLinearSystem(A,b){
+  const n=A.length; const M=A.map((row,i)=>[...row,b[i]]);
+  for(let col=0;col<n;col++){
+    let piv=col;
+    for(let r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+    [M[col],M[piv]]=[M[piv],M[col]];
+    if(Math.abs(M[col][col])<1e-12) continue;
+    for(let r=0;r<n;r++){ if(r===col) continue;
+      const factor=M[r][col]/M[col][col];
+      for(let c=col;c<=n;c++) M[r][c]-=factor*M[col][c];
+    }
+  }
+  return M.map((row,i)=> Math.abs(row[i])<1e-12?0:row[n]/row[i]);
+}
+function polyfit(ts,ys,degree){
+  const n=ts.length,k=degree+1;
+  const XtX=Array.from({length:k},()=>new Array(k).fill(0));
+  const XtY=new Array(k).fill(0);
+  for(let i=0;i<n;i++){
+    const pw=new Array(k); let p=1;
+    for(let j=0;j<k;j++){ pw[j]=p; p*=ts[i]; }
+    for(let a=0;a<k;a++){ XtY[a]+=pw[a]*ys[i]; for(let b=0;b<k;b++) XtX[a][b]+=pw[a]*pw[b]; }
+  }
+  return solveLinearSystem(XtX,XtY);
+}
+function evalPoly(coeffs,t){ let s=0,p=1; for(const c of coeffs){ s+=c*p; p*=t; } return s; }
+function fitBestPoly(ts,ys){
+  const scale = Math.max(1e-6, Math.max(...ys.map(Math.abs)));
+  for(let deg=0; deg<=5; deg++){
+    const coeffs = polyfit(ts,ys,deg);
+    let sse=0;
+    for(let i=0;i<ts.length;i++){ const d = evalPoly(coeffs,ts[i]) - ys[i]; sse += d*d; }
+    const rmse = Math.sqrt(sse/ts.length);
+    if(rmse/scale < 3e-3) return {coeffs, deg, rmse};
+  }
+  return null;
+}
+function formatPoly(coeffs){
+  // build "a2 t^2 + a1 t + a0" style string, dropping near-zero terms
+  const terms = [];
+  for(let i=coeffs.length-1;i>=0;i--){
+    const c = coeffs[i];
+    if(Math.abs(c) < 5e-4) continue;
+    const cr = Math.round(c*1000)/1000;
+    let coeffStr = Math.abs(cr).toFixed(3).replace(/\.?0+$/,'') || String(Math.abs(cr));
+    if(coeffStr === '' ) coeffStr = '0';
+    let term;
+    if(i===0) term = coeffStr;
+    else if(i===1) term = (coeffStr==='1' ? '' : coeffStr) + 't';
+    else term = (coeffStr==='1' ? '' : coeffStr) + 't^' + i;
+    terms.push({sign: cr<0 ? '-' : '+', term});
+  }
+  if(terms.length===0) return '0';
+  let out = (terms[0].sign==='-' ? '-' : '') + terms[0].term;
+  for(let i=1;i<terms.length;i++) out += ' ' + terms[i].sign + ' ' + terms[i].term;
+  return out;
+}
+
+/* ---------------- main ---------------- */
+const params = new URLSearchParams(window.location.search);
+const exprF = params.get('f') || 'rect(t,2)';
+const exprG = params.get('g') || 'rect(t,2)';
+const initTauMin = parseFloat(params.get('tmin'));
+const initTauMax = parseFloat(params.get('tmax'));
+
+document.getElementById('displayF').textContent = exprF;
+document.getElementById('displayG').textContent = exprG;
+
+// widen the default integration window a bit beyond the plot domain the user was using,
+// so unbounded/edge signals aren't cut off right at the visible edge
+function defaultTau(){
+  let lo = Number.isFinite(initTauMin) ? initTauMin : -10;
+  let hi = Number.isFinite(initTauMax) ? initTauMax : 10;
+  const pad = Math.max(4, (hi-lo)*0.5);
+  return { lo: lo - pad, hi: hi + pad };
+}
+const dTau0 = defaultTau();
+document.getElementById('tauMin').value = round6(dTau0.lo);
+document.getElementById('tauMax').value = round6(dTau0.hi);
+
+function runAnalysis(){
+  const casesEl = document.getElementById('cases');
+  const bpInfoEl = document.getElementById('bpInfo');
+  const summaryEl = document.getElementById('summary');
+  casesEl.innerHTML = '';
+
+  let codeF, codeG;
+  try{ codeF = compile(exprF); }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ f(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
+  try{ codeG = compile(exprG); }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ g(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
+
+  const bpsF = extractBreakpoints(exprF);
+  const bpsG = extractBreakpoints(exprG);
+  bpInfoEl.innerHTML =
+    '<div class="bpRow">จุดหักมุมของ f(t): <b>' + (bpsF.length? bpsF.join(', ') : '(ไม่พบ — อาจเป็นฟังก์ชันต่อเนื่อง เช่น sin/cos/exp)') + '</b></div>' +
+    '<div class="bpRow">จุดหักมุมของ g(t): <b>' + (bpsG.length? bpsG.join(', ') : '(ไม่พบ — อาจเป็นฟังก์ชันต่อเนื่อง เช่น sin/cos/exp)') + '</b></div>';
+
+  const intervals = computeCaseIntervals(bpsF, bpsG);
+  summaryEl.textContent = '💡 การ Convolution นี้แบ่งได้ทั้งหมด ' + intervals.length + ' case จากจุดตัดที่เกิดจากจุดหักมุมของ f(t) และ g(t) รวมกัน';
+
+  const tauMin = parseFloat(document.getElementById('tauMin').value);
+  const tauMax = parseFloat(document.getElementById('tauMax').value);
+  const N_INTEGRATE = 3000;
+
+  intervals.forEach((iv, idx) => {
+    const lo = iv.lo, hi = iv.hi;
+    let sampleLo, sampleHi;
+    if(lo === -Infinity){ sampleHi = hi - 0.05; sampleLo = hi - 3; }
+    else if(hi === Infinity){ sampleLo = lo + 0.05; sampleHi = lo + 3; }
+    else { const span = hi - lo; sampleLo = lo + 0.06*span + 1e-6; sampleHi = hi - 0.06*span - 1e-6; }
+
+    const NPTS = 10;
+    const ts = [];
+    for(let i=0;i<NPTS;i++) ts.push(sampleLo + (sampleHi-sampleLo)*i/(NPTS-1));
+    const ys = ts.map(t => convAt(codeF, codeG, t, tauMin, tauMax, N_INTEGRATE));
+
+    const allZero = ys.every(y => Math.abs(y) < 1e-6);
+    const fit = allZero ? {coeffs:[0], deg:0, rmse:0} : fitBestPoly(ts, ys);
+
+    const rangeStr =
+      (lo===-Infinity ? '-∞' : lo.toFixed(3).replace(/\.?0+$/,'')) + ' < t ' +
+      (hi===Infinity ? '< ∞' : '≤ ' + hi.toFixed(3).replace(/\.?0+$/,''));
+
+    const box = document.createElement('div');
+    box.className = 'caseBox';
+
+    let bodyHtml;
+    if(allZero){
+      bodyHtml = '<div class="caseEq">y(t) = 0 <span class="badge zero">ไม่ซ้อนทับ</span></div>' +
+        '<div class="caseNote">ในช่วงนี้ f(τ) และ g(t−τ) ไม่มีส่วนซ้อนทับกันเลย ผลคูณจึงเป็น 0 ตลอดช่วง</div>';
+    } else if(fit){
+      bodyHtml = '<div class="caseEq">y(t) = ' + formatPoly(fit.coeffs) + ' <span class="badge exact">FIT deg ' + fit.deg + '</span></div>' +
+        '<div class="caseNote">สมการนี้ได้จากการลากพหุนามผ่านจุดตัวอย่าง ' + NPTS + ' จุดในช่วงนี้ (คลาดเคลื่อนเฉลี่ย ~' + fit.rmse.toExponential(2) + ') ตรวจทานกับการอินทิเกรตด้วยมือเสมอ</div>';
+    } else {
+      const sampleTable = ts.map((t,i)=> 't=' + t.toFixed(2) + ' → y=' + ys[i].toFixed(4)).join(' ,  ');
+      bodyHtml = '<div class="caseEq">y(t) = ∫ f(τ)·g(t−τ) dτ <span class="badge approx">ตัวเลขเท่านั้น</span></div>' +
+        '<div class="caseNote">ระบบหาสมการพหุนามปิดรูปแบบไม่ได้ในช่วงนี้ (มักเกิดเมื่อ f หรือ g มี sin/cos/exp) นี่คือค่าประเมินเชิงตัวเลขบางจุดในช่วงนี้เพื่อใช้ตรวจทาน:<br>' + sampleTable + '</div>';
+    }
+
+    box.innerHTML =
+      '<h3>Case ' + (idx+1) + ' จาก ' + intervals.length + '</h3>' +
+      '<div class="caseRange">ช่วง: ' + rangeStr + '</div>' +
+      bodyHtml;
+    casesEl.appendChild(box);
+  });
+}
+
+document.getElementById('recalc').onclick = runAnalysis;
+runAnalysis();
+</script>
+</body>
+</html>
