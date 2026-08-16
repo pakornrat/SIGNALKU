@@ -15,7 +15,7 @@
   :root{
     --bg:#0b1210; --bezel1:#182420; --bezel2:#111a17; --border:#2a3b34;
     --screen:#041209; --grid:#123425; --gridMajor:#3d6b57;
-    --f-color:#6effb8; --g-color:#ffb84d; --conv-color:#7fb8ff; --sim-color:#ff8fd0;
+    --f-color:#6effb8; --g-color:#ffb84d; --conv-color:#7fb8ff; --sim-color:#ff8fd0; --props-color:#c792ea;
     --text:#e8f5ee; --muted:#7fa396; --muted2:#5c8a76; --err:#ff5c5c;
     --mono:'IBM Plex Mono',monospace; --thai:'IBM Plex Sans Thai',sans-serif;
   }
@@ -94,6 +94,27 @@
     border:1px solid rgba(255,143,208,.3);border-radius:6px;padding:8px 12px;}
   .simHint{font-size:12px;color:var(--muted);margin-top:8px;}
 
+  .propsBox{margin-top:14px;border-top:1px solid #223129;padding-top:14px;}
+  .propsTitle{font-family:var(--mono);font-size:12px;color:var(--props-color);letter-spacing:.05em;margin-bottom:10px;}
+  .srcRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .srcBtn{background:#0e1815;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:12px;
+    border-radius:20px;padding:7px 14px;cursor:pointer;}
+  .srcBtn.active{color:#000;background:var(--props-color);border-color:var(--props-color);}
+  .runCheckBtn{background:#2a1d33;border:1px solid #8a5aa8;color:var(--props-color);font-family:var(--mono);font-size:12.5px;font-weight:600;
+    border-radius:6px;padding:10px 18px;cursor:pointer;letter-spacing:.03em;}
+  .runCheckBtn:hover{border-color:var(--props-color);}
+  .propsGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;}
+  .propCard{background:#182420;border-radius:8px;padding:12px 14px;border-left:4px solid var(--muted2);}
+  .propCard.pass{border-left-color:#6effb8;}
+  .propCard.fail{border-left-color:#ff5c5c;}
+  .propCard.unknown{border-left-color:#ffb84d;}
+  .propCard h4{margin:0 0 4px;font-family:var(--mono);font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;}
+  .propCard .verdictIcon{font-size:14px;}
+  .propCard p{margin:0;font-size:12px;color:var(--muted);line-height:1.5;}
+  .propCard .evidence{font-family:var(--mono);font-size:11px;color:#a9c9bb;margin-top:6px;}
+  .propsNote{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;}
+  @media(max-width:720px){ .propsGrid{grid-template-columns:1fr;} }
+
   .refBox{margin-top:20px;border-top:1px solid #223129;padding-top:12px;}
   .refTitle{font-family:var(--mono);font-size:10.5px;color:var(--muted2);letter-spacing:.08em;margin-bottom:8px;}
   .refGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12.5px;color:#a9c9bb;}
@@ -132,6 +153,7 @@
       <div class="tab" data-mode="both"><span class="dot" style="background:linear-gradient(90deg,#6effb8,#ffb84d);"></span>f &amp; g overlay</div>
       <div class="tab" data-mode="conv"><span class="dot" style="background:#7fb8ff;"></span>(f*g)(t) convolution</div>
       <div class="tab" data-mode="sim"><span class="dot" style="background:#ff8fd0;"></span>SIMULATION</div>
+      <div class="tab" data-mode="props"><span class="dot" style="background:#c792ea;"></span>PROPERTIES</div>
     </div>
 
     <div class="screenFrame">
@@ -238,6 +260,20 @@
       <div class="simHint">แถบสีบนคือ f(τ) (นิ่ง) และ g(t−τ) (เลื่อน) พื้นที่แรเงาคือผลคูณ f(τ)·g(t−τ) ณ ตำแหน่ง t ปัจจุบัน — พื้นที่ใต้กราฟแรเงานี้คือค่า y(t) แถบล่างคือกราฟผลลัพธ์ y(t) ที่ค่อยๆ ก่อตัวขึ้น (ต้องกด COMPUTE CONVOLUTION ก่อนเพื่อให้แถบล่างแสดงผล)</div>
     </div>
 
+    <!-- system properties checker -->
+    <div class="propsBox" id="propsBox" style="display:none;">
+      <div class="propsTitle">SYSTEM PROPERTIES CHECK — ตรวจสอบ 6 คุณสมบัติของระบบ (สมมติให้สัญญาณที่เลือกคือ h(t) impulse response)</div>
+      <div class="srcRow">
+        <span style="font-family:var(--mono);font-size:11px;color:#5c8a76;">ตรวจสอบจาก:</span>
+        <button class="srcBtn active" id="srcBtnF" data-src="f">f(t) — ก่อน convolution</button>
+        <button class="srcBtn" id="srcBtnG" data-src="g">g(t) — ก่อน convolution</button>
+        <button class="srcBtn" id="srcBtnConv" data-src="conv">(f*g)(t) — หลัง convolution</button>
+        <button class="runCheckBtn" id="runCheckBtn">⚙ RUN CHECK</button>
+      </div>
+      <div id="propsResults"></div>
+      <div class="propsNote">หมายเหตุ: การตรวจสอบนี้เป็นการทดสอบเชิงตัวเลข/เชิงประจักษ์ (numerical/empirical) ไม่ใช่การพิสูจน์เชิงคณิตศาสตร์ที่แม่นยำ 100% — โดยเฉพาะ Stability และ Invertibility ควรใช้เป็นตัวช่วยตรวจทาน ไม่ใช่คำตอบสุดท้ายแทนการคำนวณด้วยมือ</div>
+    </div>
+
     <!-- function reference -->
     <div class="refBox">
       <div class="refTitle">ฟังก์ชันที่ใช้ได้</div>
@@ -247,6 +283,7 @@
         <span><b>rect(t,w)</b> พัลส์สี่เหลี่ยม กว้าง w</span>
         <span><b>tri(t,w)</b> สามเหลี่ยม ครึ่งฐาน w</span>
         <span><b>sign(t)</b>, <b>abs(t)</b></span>
+        <span><b>delta(t)</b> อิมพัลส์ δ(t) (วาดเป็นลูกศร)</span>
         <span><b>exp(t)</b>, <b>sin(t)</b>, <b>cos(t)</b></span>
         <span><b>pi</b>, <b>t^2</b> (ยกกำลัง)</span>
         <span>เลื่อนเวลา: <b>u(t-3)</b>, <b>exp(-t+2)</b></span>
@@ -265,6 +302,7 @@ const CUSTOM_FNS = {
   rect: (x, w=1) => (Math.abs(x) < w/2 ? 1 : 0),
   tri:  (x, w=1) => (Math.abs(x) < w ? 1 - Math.abs(x)/w : 0),
   sign: (x) => (x > 0 ? 1 : x < 0 ? -1 : 0),
+  delta: (x) => 0, // δ(t) can't be sampled pointwise — handled symbolically (see extractImpulses); this is only a safe fallback
 };
 
 const PRESETS = [
@@ -275,6 +313,9 @@ const PRESETS = [
   { label: "exp decay", expr: "3*exp(-0.5*t)*u(t)" },
   { label: "sine", expr: "sin(2*pi*t)" },
   { label: "damped sine", expr: "4*exp(-0.3*t)*sin(2*pi*t)*u(t)" },
+  { label: "impulse δ(t)", expr: "delta(t)" },
+  { label: "shifted impulse", expr: "2*delta(t-2)" },
+  { label: "impulse train", expr: "delta(t+2)+delta(t)+delta(t-2)" },
   { label: "จากโจทย์ Test 2", expr: "(t+6)*(u(t+6)-u(t+3)) + 3*(u(t+3)-u(t)) - 3*(u(t)-u(t-3)) + (t-6)*(u(t-3)-u(t-6))" },
 ];
 
@@ -292,9 +333,11 @@ let state = {
   autoY: true, yMinM: -3, yMaxM: 3,
   mode: "f",
   errF: null, errG: null,
+  impF: [], impG: [], convOutputImpulses: [],
   convPoints: null, convComputed: false,
   presetTarget: "f",
   simT: -8, simPlaying: false, simSpeed: 1.5, simLoop: true,
+  propsSource: 'f',
 };
 let simRAF = null, simLastTs = null;
 
@@ -331,12 +374,22 @@ function niceStep(range, targetDivs){
 
 /* ---------------- recompile expressions ---------------- */
 function recompileF(){
-  try{ state.codeF = compile(state.exprF); state.errF = null; }
-  catch(e){ state.codeF = null; state.errF = "f(t) PARSE ERR: " + e.message.split('\n')[0]; }
+  try{
+    const {impulses, remainderExpr} = extractImpulses(state.exprF);
+    state.impF = impulses;
+    state.codeF = compile(remainderExpr);
+    state.errF = null;
+  }
+  catch(e){ state.codeF = null; state.impF = []; state.errF = "f(t) PARSE ERR: " + e.message.split('\n')[0]; }
 }
 function recompileG(){
-  try{ state.codeG = compile(state.exprG); state.errG = null; }
-  catch(e){ state.codeG = null; state.errG = "g(t) PARSE ERR: " + e.message.split('\n')[0]; }
+  try{
+    const {impulses, remainderExpr} = extractImpulses(state.exprG);
+    state.impG = impulses;
+    state.codeG = compile(remainderExpr);
+    state.errG = null;
+  }
+  catch(e){ state.codeG = null; state.impG = []; state.errG = "g(t) PARSE ERR: " + e.message.split('\n')[0]; }
 }
 
 /* ---------------- breakpoint / case detection (shared logic with details.html) ---------------- */
@@ -356,14 +409,14 @@ function evalConst(expr){
 }
 function extractBreakpoints(expr){
   const bps = new Set();
-  const re = /\b(u|r|rect|tri)\s*\(([^()]*)\)/g;
+  const re = /\b(u|r|rect|tri|delta)\s*\(([^()]*)\)/g;
   let m;
   while((m = re.exec(expr))){
     const fn = m[1];
     const args = m[2].split(',').map(s=>s.trim());
     const shift = extractShift(args[0]);
     if(shift === null) continue;
-    if(fn === 'u' || fn === 'r'){
+    if(fn === 'u' || fn === 'r' || fn === 'delta'){
       bps.add(round6(shift));
     } else if(fn === 'rect'){
       const w = args[1] !== undefined ? evalConst(args[1]) : 1;
@@ -374,6 +427,48 @@ function extractBreakpoints(expr){
     }
   }
   return [...bps].sort((a,b)=>a-b);
+}
+/* ---------------- impulse (delta) extraction ---------------- */
+// Splits an expression into top-level +/- terms, respecting parenthesis depth.
+function splitTopLevelTerms(expr){
+  let s = expr.trim();
+  if(s[0] !== '+' && s[0] !== '-') s = '+' + s;
+  const terms = [];
+  let depth = 0, curSign = null, curStart = null;
+  for(let i=0;i<s.length;i++){
+    const c = s[i];
+    if(c === '(') depth++;
+    else if(c === ')') depth--;
+    else if(depth === 0 && (c === '+' || c === '-')){
+      if(curSign !== null) terms.push({sign: curSign, text: s.slice(curStart, i).trim()});
+      curSign = c; curStart = i+1;
+    }
+  }
+  if(curSign !== null) terms.push({sign: curSign, text: s.slice(curStart).trim()});
+  return terms.filter(t => t.text.length > 0);
+}
+// Pulls out pure "coef * delta(shift)" terms from an expression.
+// Returns { impulses: [{coef, shift}], remainderExpr } where remainderExpr has those
+// terms removed (safe to compile/evaluate normally as a regular continuous function).
+function extractImpulses(expr){
+  const terms = splitTopLevelTerms(expr);
+  const impulses = [];
+  const remainder = [];
+  for(const term of terms){
+    const m = term.text.match(/delta\s*\(([^()]*)\)\s*$/);
+    if(m){
+      let prefix = term.text.slice(0, m.index).replace(/\*\s*$/, '').trim();
+      const coefVal = prefix === '' ? 1 : evalConst(prefix);
+      const shift = extractShift(m[1]);
+      if(coefVal !== null && shift !== null){
+        impulses.push({ coef: term.sign === '-' ? -coefVal : coefVal, shift: round6(shift) });
+        continue;
+      }
+    }
+    remainder.push(term.sign + term.text);
+  }
+  const remainderExpr = remainder.length ? remainder.join(' ') : '0';
+  return { impulses, remainderExpr };
 }
 function computeCaseIntervals(bpsF, bpsG){
   const critical = new Set();
@@ -452,10 +547,35 @@ function computeConvolution(){
     }
     out[k] = { t: tOut, v: sum*dTau };
   }
+
+  // sifting-property contributions from any impulses (delta terms) in f or g:
+  // f(t)*δ(t-a) = f(t-a), so an impulse in f contributes coef * gReg(t-a); likewise for g.
+  if(state.impF.length || state.impG.length){
+    for(let k=0;k<=nOut;k++){
+      const tOut = out[k].t;
+      let extra = 0;
+      for(const imp of state.impG){
+        let fv; try{ fv = state.codeF.evaluate({...CUSTOM_FNS, t: tOut - imp.shift}); if(!Number.isFinite(fv)) fv=0; }catch(e){ fv=0; }
+        extra += imp.coef * fv;
+      }
+      for(const imp of state.impF){
+        let gv; try{ gv = state.codeG.evaluate({...CUSTOM_FNS, t: tOut - imp.shift}); if(!Number.isFinite(gv)) gv=0; }catch(e){ gv=0; }
+        extra += imp.coef * gv;
+      }
+      out[k].v += extra;
+    }
+  }
+  // impulse * impulse -> new impulses in the output at t = a_i + b_j, weight coef_i*coef_j
+  state.convOutputImpulses = [];
+  for(const fi of state.impF) for(const gi of state.impG){
+    state.convOutputImpulses.push({ coef: round6(fi.coef*gi.coef), shift: round6(fi.shift+gi.shift) });
+  }
+
   state.convPoints = out;
   state.convComputed = true;
   document.getElementById('convNote').textContent =
-    "คำนวณเสร็จแล้ว (" + (nOut+1) + " จุด) — τ อินทิเกรตจากช่วง f/g domain [" + tauMin.toFixed(1) + ", " + tauMax.toFixed(1) + "]";
+    "คำนวณเสร็จแล้ว (" + (nOut+1) + " จุด) — τ อินทิเกรตจากช่วง f/g domain [" + tauMin.toFixed(1) + ", " + tauMax.toFixed(1) + "]" +
+    (state.convOutputImpulses.length ? "  ⚡ ผลลัพธ์มีอิมพัลส์ใหม่ " + state.convOutputImpulses.length + " ตัว (ดูลูกศรในกราฟ)" : "");
   updateCaseCount();
   render();
 }
@@ -494,6 +614,7 @@ function render(){
   document.getElementById('trigText').textContent = msgs.length ? 'ERR' : "TRIG'D";
 
   document.getElementById('simBox').style.display = (state.mode === 'sim') ? 'block' : 'none';
+  document.getElementById('propsBox').style.display = (state.mode === 'props') ? 'block' : 'none';
   document.getElementById('legend').style.display = (state.mode === 'sim') ? 'none' : 'flex';
 
   if(state.mode === 'sim'){
@@ -503,19 +624,24 @@ function render(){
     return;
   }
 
+  if(state.mode === 'props'){
+    drawPropsCanvas();
+    return;
+  }
+
   let seriesList = [];
   let tMin = state.tMin, tMax = state.tMax;
 
   if(state.mode === 'f' && state.codeF){
-    seriesList.push({points: sample(state.codeF, tMin, tMax, N_SAMPLES), color: '#6effb8', label:'f(t)'});
+    seriesList.push({points: sample(state.codeF, tMin, tMax, N_SAMPLES), color: '#6effb8', label:'f(t)', impulses: state.impF});
   } else if(state.mode === 'g' && state.codeG){
-    seriesList.push({points: sample(state.codeG, tMin, tMax, N_SAMPLES), color:'#ffb84d', label:'g(t)'});
+    seriesList.push({points: sample(state.codeG, tMin, tMax, N_SAMPLES), color:'#ffb84d', label:'g(t)', impulses: state.impG});
   } else if(state.mode === 'both'){
-    if(state.codeF) seriesList.push({points: sample(state.codeF, tMin, tMax, N_SAMPLES), color:'#6effb8', label:'f(t)'});
-    if(state.codeG) seriesList.push({points: sample(state.codeG, tMin, tMax, N_SAMPLES), color:'#ffb84d', label:'g(t)'});
+    if(state.codeF) seriesList.push({points: sample(state.codeF, tMin, tMax, N_SAMPLES), color:'#6effb8', label:'f(t)', impulses: state.impF});
+    if(state.codeG) seriesList.push({points: sample(state.codeG, tMin, tMax, N_SAMPLES), color:'#ffb84d', label:'g(t)', impulses: state.impG});
   } else if(state.mode === 'conv'){
     if(state.convPoints){
-      seriesList.push({points: state.convPoints, color:'#7fb8ff', label:'(f*g)(t)'});
+      seriesList.push({points: state.convPoints, color:'#7fb8ff', label:'(f*g)(t)', impulses: state.convOutputImpulses});
       tMin = state.convPoints[0].t; tMax = state.convPoints[state.convPoints.length-1].t;
     }
   }
@@ -593,6 +719,37 @@ function drawScope(seriesList, tMin, tMax, yMin, yMax){
     ctx.restore();
   });
 
+  // impulse arrows (δ terms) — drawn at a fixed pixel height and labeled with their weight,
+  // the standard textbook convention since true Dirac impulses have no finite value to plot
+  seriesList.forEach(s=>{
+    if(!s.impulses || !s.impulses.length) return;
+    s.impulses.forEach(imp=>{
+      if(imp.shift < tMin || imp.shift > tMax) return;
+      const x = xOf(imp.shift);
+      const zeroY = yOf(0);
+      const dir = imp.coef >= 0 ? -1 : 1;
+      const tipY = zeroY + dir * PLOT_H * 0.34;
+      ctx.save();
+      ctx.shadowColor = s.color; ctx.shadowBlur = 8;
+      ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.moveTo(x, zeroY); ctx.lineTo(x, tipY); ctx.stroke();
+      // arrowhead
+      const ah = 10;
+      ctx.beginPath();
+      ctx.moveTo(x, tipY);
+      ctx.lineTo(x-ah*0.6, tipY - dir*ah);
+      ctx.lineTo(x+ah*0.6, tipY - dir*ah);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.font = '17px "IBM Plex Mono", monospace';
+      ctx.fillStyle = s.color; ctx.textAlign = 'center';
+      const coefTxt = (Math.abs(imp.coef-1)<1e-9) ? '' : (Math.abs(imp.coef+1)<1e-9 ? '-' : round6(imp.coef)+'·');
+      const label = coefTxt + 'δ(t' + (imp.shift===0?'':(imp.shift>0?'−'+round6(imp.shift):'+'+round6(-imp.shift))) + ')';
+      ctx.fillText(label, x, tipY - dir*(ah+8));
+    });
+  });
+
   // cursor
   if(cursor){
     ctx.strokeStyle = 'rgba(255,184,77,0.8)';
@@ -648,7 +805,16 @@ function quickConvAt(t){
     const w = (i===0||i===n) ? 0.5 : 1;
     sum += w*fv*gv;
   }
-  return sum*dTau;
+  let val = sum*dTau;
+  for(const imp of state.impG){
+    let fv; try{ fv = state.codeF.evaluate({...CUSTOM_FNS, t: t - imp.shift}); if(!Number.isFinite(fv)) fv=0; }catch(e){ fv=0; }
+    val += imp.coef * fv;
+  }
+  for(const imp of state.impF){
+    let gv; try{ gv = state.codeG.evaluate({...CUSTOM_FNS, t: t - imp.shift}); if(!Number.isFinite(gv)) gv=0; }catch(e){ gv=0; }
+    val += imp.coef * gv;
+  }
+  return val;
 }
 function drawSimulation(){
   syncSimRange();
@@ -726,6 +892,23 @@ function drawSimulation(){
   ctx.beginPath();
   for(let i=0;i<=N;i++){ const x=xOf(taus[i]), y=yOfTop(gVals[i]); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
   ctx.stroke(); ctx.restore();
+
+  // impulse arrows: f's impulses are static at tau=shift; g's impulses slide (fire when simT-tau=shift, i.e. tau=simT-shift)
+  function drawImp(tauPos, coef, color){
+    if(tauPos < domMin || tauPos > domMax) return;
+    const x = xOf(tauPos), zeroY = yOfTop(0);
+    const dir = coef >= 0 ? -1 : 1;
+    const tipY = zeroY + dir*(topY1-topY0)*0.4;
+    ctx.save(); ctx.shadowColor=color; ctx.shadowBlur=8; ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3.4;
+    ctx.beginPath(); ctx.moveTo(x, zeroY); ctx.lineTo(x, tipY); ctx.stroke();
+    const ah=9;
+    ctx.beginPath(); ctx.moveTo(x,tipY); ctx.lineTo(x-ah*0.6, tipY-dir*ah); ctx.lineTo(x+ah*0.6, tipY-dir*ah); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.font='15px "IBM Plex Mono", monospace'; ctx.fillStyle=color; ctx.textAlign='center';
+    ctx.fillText(round6(coef)+'δ', x, tipY - dir*(ah+6));
+  }
+  state.impF.forEach(imp => drawImp(imp.shift, imp.coef, '#6effb8'));
+  state.impG.forEach(imp => drawImp(state.simT - imp.shift, imp.coef, '#ffb84d'));
 
   // marker line at current t
   ctx.strokeStyle = 'rgba(255,143,208,0.85)'; ctx.setLineDash([7,5]); ctx.lineWidth=2;
@@ -822,6 +1005,261 @@ function resetSim(){
   render();
 }
 
+/* ---------------- system properties checker ---------------- */
+function sampleGeneric(evalFn, tMin, tMax, n){
+  const pts = new Array(n+1);
+  const step = (tMax-tMin)/n;
+  for(let i=0;i<=n;i++){
+    const tVal = tMin + i*step;
+    let v;
+    try{ v = evalFn(tVal); if(typeof v !== 'number' || Number.isNaN(v) || !Number.isFinite(v)) v = NaN; }catch(e){ v = NaN; }
+    pts[i] = {t: tVal, v: v};
+  }
+  return pts;
+}
+function makeCodeSource(exprStr){
+  const {impulses, remainderExpr} = extractImpulses(exprStr);
+  const regCode = compile(remainderExpr);
+  return {
+    evalAt: (t) => { try{ const v = regCode.evaluate({...CUSTOM_FNS, t}); return Number.isFinite(v) ? v : 0; }catch(e){ return 0; } },
+    impulses
+  };
+}
+// generic convolution y(t) = (srcA * srcB)(t), integrating srcA over tau, srcB shifted — handles impulses via sifting
+function convGenericAt(srcA, srcB, t, tauMin, tauMax, n){
+  const dTau = (tauMax-tauMin)/n;
+  let sum = 0;
+  for(let i=0;i<=n;i++){
+    const tau = tauMin + i*dTau;
+    let av, bv;
+    try{ av = srcA.evalAt(tau); if(!Number.isFinite(av)) av = 0; }catch(e){ av = 0; }
+    try{ bv = srcB.evalAt(t-tau); if(!Number.isFinite(bv)) bv = 0; }catch(e){ bv = 0; }
+    const w = (i===0||i===n) ? 0.5 : 1;
+    sum += w*av*bv;
+  }
+  let val = sum*dTau;
+  (srcB.impulses||[]).forEach(imp=>{ let av; try{ av = srcA.evalAt(t-imp.shift); if(!Number.isFinite(av)) av=0; }catch(e){ av=0; } val += imp.coef*av; });
+  (srcA.impulses||[]).forEach(imp=>{ let bv; try{ bv = srcB.evalAt(t-imp.shift); if(!Number.isFinite(bv)) bv=0; }catch(e){ bv=0; } val += imp.coef*bv; });
+  return val;
+}
+function getHSource(){
+  if(state.propsSource === 'conv'){
+    if(!state.convComputed || !state.convPoints) return null;
+    const pts = state.convPoints;
+    const tLo = pts[0].t, tHi = pts[pts.length-1].t;
+    const evalAt = (t) => {
+      if(t < tLo || t > tHi) return 0;
+      const frac = (t-tLo)/(tHi-tLo)*(pts.length-1);
+      const i0 = Math.max(0, Math.min(pts.length-2, Math.floor(frac)));
+      const lf = frac - i0;
+      const v0 = pts[i0].v, v1 = pts[i0+1].v;
+      if(!Number.isFinite(v0) || !Number.isFinite(v1)) return 0;
+      return v0 + (v1-v0)*lf;
+    };
+    return { evalAt, evalRaw: evalAt, impulses: state.convOutputImpulses||[], domainLo: tLo, domainHi: tHi, label: '(f*g)(t)' };
+  }
+  if(state.propsSource === 'f'){
+    if(!state.codeF) return null;
+    return {
+      evalAt: (t) => { try{ const v = state.codeF.evaluate({...CUSTOM_FNS, t}); return Number.isFinite(v)?v:0; }catch(e){ return 0; } },
+      evalRaw: (t) => { try{ return state.codeF.evaluate({...CUSTOM_FNS, t}); }catch(e){ return NaN; } },
+      impulses: state.impF||[], domainLo: state.tMin, domainHi: state.tMax, label: 'f(t)'
+    };
+  }
+  if(state.propsSource === 'g'){
+    if(!state.codeG) return null;
+    return {
+      evalAt: (t) => { try{ const v = state.codeG.evaluate({...CUSTOM_FNS, t}); return Number.isFinite(v)?v:0; }catch(e){ return 0; } },
+      evalRaw: (t) => { try{ return state.codeG.evaluate({...CUSTOM_FNS, t}); }catch(e){ return NaN; } },
+      impulses: state.impG||[], domainLo: state.tMin, domainHi: state.tMax, label: 'g(t)'
+    };
+  }
+  return null;
+}
+function sampleScale(hSrc){
+  const N = 300; let mx = 0;
+  for(let i=0;i<=N;i++){
+    const t = hSrc.domainLo + (hSrc.domainHi-hSrc.domainLo)*i/N;
+    const v = Math.abs(hSrc.evalAt(t));
+    if(v > mx) mx = v;
+  }
+  hSrc.impulses.forEach(imp=>{ if(Math.abs(imp.coef) > mx) mx = Math.abs(imp.coef); });
+  return mx;
+}
+function checkCausality(hSrc){
+  const lo = hSrc.domainLo - Math.max(3, (hSrc.domainHi-hSrc.domainLo)*0.5), hi = Math.min(0, hSrc.domainHi);
+  let maxNeg = 0;
+  const N = 300;
+  if(hi > lo){
+    for(let i=0;i<=N;i++){
+      const t = lo + (hi-lo)*i/N;
+      if(t >= 0) continue;
+      const v = Math.abs(hSrc.evalAt(t));
+      if(v > maxNeg) maxNeg = v;
+    }
+  }
+  const negImpulses = hSrc.impulses.filter(imp => imp.shift < -1e-6);
+  const scale = Math.max(1e-6, sampleScale(hSrc));
+  const causal = (maxNeg/scale < 1e-3) && negImpulses.length === 0;
+  return { causal, maxNeg, negImpulses };
+}
+function checkStability(hSrc){
+  // uses evalRaw (unclamped) so genuine overflow (Infinity) is detected as instability
+  // rather than being silently zeroed out by the normal display-safe evalAt clamp
+  const rawFn = hSrc.evalRaw || hSrc.evalAt;
+  function integralAbs(lo, hi, n){
+    const dTau = (hi-lo)/n; let sum = 0; let blewUp = false;
+    for(let i=0;i<=n;i++){
+      const t = lo+i*dTau;
+      let v; try{ v = rawFn(t); }catch(e){ v = NaN; }
+      if(!Number.isFinite(v)){ if(Math.abs(v) === Infinity) blewUp = true; v = 0; }
+      const w = (i===0||i===n)?0.5:1;
+      sum += w*Math.abs(v);
+    }
+    let val = sum*dTau;
+    hSrc.impulses.forEach(imp=>{ if(imp.shift >= lo && imp.shift <= hi) val += Math.abs(imp.coef); });
+    return { val, blewUp };
+  }
+  const base = integralAbs(hSrc.domainLo, hSrc.domainHi, 800);
+  const pad = Math.max(2, (hSrc.domainHi-hSrc.domainLo));
+  const extended = integralAbs(hSrc.domainLo-pad, hSrc.domainHi+pad, 1200);
+  if(base.blewUp || extended.blewUp){
+    return { integral: Infinity, stable: false, relGrowth: Infinity, overflow: true };
+  }
+  const growth = extended.val - base.val;
+  const relGrowth = growth / Math.max(1e-6, base.val);
+  const stable = relGrowth < 0.08;
+  return { integral: extended.val, stable, relGrowth, overflow: false };
+}
+function checkMemory(hSrc){
+  const N = 300; let contMax = 0;
+  for(let i=0;i<=N;i++){
+    const t = hSrc.domainLo + (hSrc.domainHi-hSrc.domainLo)*i/N;
+    const v = Math.abs(hSrc.evalAt(t));
+    if(v > contMax) contMax = v;
+  }
+  const nonZeroImpulses = hSrc.impulses.filter(imp => Math.abs(imp.coef) > 1e-9);
+  const offZeroImpulses = nonZeroImpulses.filter(imp => Math.abs(imp.shift) > 1e-6);
+  const memoryless = contMax < 1e-4*Math.max(1, sampleScale(hSrc)) && offZeroImpulses.length === 0;
+  return { memoryless, contMax, impulseCount: nonZeroImpulses.length };
+}
+function checkInvertibility(hSrc){
+  const mem = checkMemory(hSrc);
+  if(mem.memoryless){
+    const K = hSrc.impulses.filter(i => Math.abs(i.shift) < 1e-6).reduce((s,i)=>s+i.coef, 0);
+    if(Math.abs(K) > 1e-9){
+      return { determined: true, invertible: true, note: 'h(t) = '+round6(K)+'·δ(t) เป็นระบบ memoryless amplifier ที่ K≠0 → invertible เสมอ ระบบผกผันคือ h_i(t) = (1/'+round6(K)+')·δ(t)' };
+    }
+    return { determined: true, invertible: false, note: 'h(t) ≈ 0 ตลอดช่วง (ระบบศูนย์) → ไม่ invertible' };
+  }
+  return { determined: false, invertible: null, note: 'ไม่สามารถตรวจสอบอัตโนมัติได้แม่นยำสำหรับ h(t) ทั่วไปในเครื่องมือนี้ — ตามทฤษฎี ระบบ LTI จะ invertible ก็ต่อเมื่อ H(jω) ≠ 0 ทุกความถี่ ω (ไม่มีศูนย์ของ H(s) บนแกน jω) ลองตรวจสอบด้วยการแปลง Laplace/Fourier ด้วยมือ' };
+}
+function checkTimeInvariance(hSrc){
+  const x1 = makeCodeSource('rect(t,2)');
+  const t0 = 1.7;
+  const x1shifted = makeCodeSource('rect(t-1.7,2)');
+  const testTs = [-4,-2,-1,0,1,2,3,4,5,6];
+  let maxErr = 0, maxRef = 1e-9;
+  testTs.forEach(t=>{
+    const y1 = convGenericAt(x1, hSrc, t - t0, -10, 10, 500);
+    const yShift = convGenericAt(x1shifted, hSrc, t, -10, 10, 500);
+    const err = Math.abs(y1 - yShift);
+    if(err > maxErr) maxErr = err;
+    maxRef = Math.max(maxRef, Math.abs(y1), Math.abs(yShift));
+  });
+  const timeInvariant = maxErr/maxRef < 1e-2;
+  return { timeInvariant, maxErr, maxRef };
+}
+function checkLinearity(hSrc){
+  const x1 = makeCodeSource('rect(t,2)');
+  const x2 = makeCodeSource('exp(-0.5*t)*u(t)');
+  const a1 = 2, a2 = -1.5;
+  const xCombo = makeCodeSource(a1+'*rect(t,2) + ('+a2+')*exp(-0.5*t)*u(t)');
+  const testTs = [-4,-2,-1,0,1,2,3,4,5,6];
+  let maxErr = 0, maxRef = 1e-9;
+  testTs.forEach(t=>{
+    const lhs = convGenericAt(xCombo, hSrc, t, -10, 10, 500);
+    const y1 = convGenericAt(x1, hSrc, t, -10, 10, 500);
+    const y2 = convGenericAt(x2, hSrc, t, -10, 10, 500);
+    const rhs = a1*y1 + a2*y2;
+    const err = Math.abs(lhs-rhs);
+    if(err > maxErr) maxErr = err;
+    maxRef = Math.max(maxRef, Math.abs(lhs), Math.abs(rhs));
+  });
+  const linear = maxErr/maxRef < 1e-2;
+  return { linear, maxErr, maxRef };
+}
+function propCardHtml(title, verdictClass, icon, desc, evidence){
+  return '<div class="propCard '+verdictClass+'"><h4><span class="verdictIcon">'+icon+'</span>'+title+'</h4><p>'+desc+'</p>' +
+    (evidence ? '<div class="evidence">'+evidence+'</div>' : '') + '</div>';
+}
+function runPropertiesCheck(){
+  const resultsEl = document.getElementById('propsResults');
+  const hSrc = getHSource();
+  if(!hSrc){
+    resultsEl.innerHTML = '<div class="propsNote" style="color:#ff8a8a;">' +
+      (state.propsSource === 'conv' ? 'ยังไม่ได้กด COMPUTE CONVOLUTION ในแท็บ (f*g)(t) — กดคำนวณก่อน แล้วกลับมากด RUN CHECK อีกครั้ง' : 'แก้สมการ f(t)/g(t) ที่ error ก่อน') +
+      '</div>';
+    return;
+  }
+
+  const mem = checkMemory(hSrc);
+  const inv = checkInvertibility(hSrc);
+  const caus = checkCausality(hSrc);
+  const stab = checkStability(hSrc);
+  const ti = checkTimeInvariance(hSrc);
+  const lin = checkLinearity(hSrc);
+
+  let html = '<div class="propsGrid">';
+  html += propCardHtml('1. Memory (หน่วยความจำ)', mem.memoryless?'pass':'fail', mem.memoryless?'✓':'✗',
+    mem.memoryless ? 'Memoryless — h(t) เป็นแค่ impulse ที่ t=0 (ideal amplifier)' : 'มี Memory — h(t) ขึ้นกับค่าที่ต่างเวลากัน t≠0',
+    'max|h(t)| ส่วนต่อเนื่อง ≈ '+mem.contMax.toExponential(2)+' , จำนวนอิมพัลส์ = '+mem.impulseCount);
+
+  html += propCardHtml('2. Invertibility (ผกผันได้)', inv.determined ? (inv.invertible?'pass':'fail') : 'unknown', inv.determined ? (inv.invertible?'✓':'✗') : '⚠',
+    inv.note);
+
+  html += propCardHtml('3. Causality (เชิงเหตุ)', caus.causal?'pass':'fail', caus.causal?'✓':'✗',
+    caus.causal ? 'Causal — h(t) = 0 สำหรับ t < 0' : 'Non-causal — h(t) มีค่า ≠ 0 ที่ t < 0',
+    'max|h(t<0)| ≈ '+caus.maxNeg.toExponential(2)+(caus.negImpulses.length ? ' , พบ δ ที่ t<0 จำนวน '+caus.negImpulses.length : ''));
+
+  html += propCardHtml('4. Stability (BIBO)', stab.stable?'pass':'fail', stab.stable?'✓':'✗',
+    stab.overflow ? 'Unstable ชัดเจน — h(t) มีค่าโตจนเกิน overflow (เข้าใกล้อนันต์) ในช่วงที่คำนวณ' :
+      (stab.stable ? 'ดูเหมือน Stable — ∫|h(t)|dt ลู่เข้า (มีค่าจำกัด)' : 'ดูเหมือน Unstable — ∫|h(t)|dt ยังโตขึ้นเมื่อขยายช่วงอินทิเกรต (อาจลู่ออก)'),
+    stab.overflow ? 'ตรวจพบค่า overflow ระหว่างสุ่มตัวอย่าง' : '∫|h(t)|dt (ประมาณ) ≈ '+round6(stab.integral)+' , อัตราการโตเมื่อขยายช่วง ≈ '+(stab.relGrowth*100).toFixed(1)+'%');
+
+  html += propCardHtml('5. Time Invariance', ti.timeInvariant?'pass':'fail', ti.timeInvariant?'✓':'✗',
+    'ทดสอบ: ป้อน x(t-t₀) แล้วดูว่า output เลื่อนตาม t₀=1.7 หรือไม่ — เนื่องจากคำนวณผ่าน convolution จริง ระบบจะ time-invariant เสมอตามคณิตศาสตร์',
+    'error สูงสุด ≈ '+ti.maxErr.toExponential(2)+' (เทียบกับสเกล ≈ '+ti.maxRef.toExponential(2)+')');
+
+  html += propCardHtml('6. Linearity', lin.linear?'pass':'fail', lin.linear?'✓':'✗',
+    'ทดสอบ superposition: a₁x₁+a₂x₂ → a₁y₁+a₂y₂ (a₁=2, a₂=-1.5) — เนื่องจากคำนวณผ่าน convolution จริง ระบบจะ linear เสมอตามคณิตศาสตร์',
+    'error สูงสุด ≈ '+lin.maxErr.toExponential(2)+' (เทียบกับสเกล ≈ '+lin.maxRef.toExponential(2)+')');
+
+  html += '</div>';
+  html += '<div class="propsNote">ทดสอบจาก h(t) = ' + hSrc.label + ' — Time Invariance และ Linearity จะผ่านเสมอเพราะ y=x∗h ถูกนิยามผ่าน convolution ซึ่งเป็นตัวดำเนินการ LTI โดยธรรมชาติทางคณิตศาสตร์อยู่แล้ว การทดสอบนี้แสดงให้เห็นเชิงตัวเลขว่าเป็นจริงตามทฤษฎีในสไลด์ (Test for time invariance / Test a₁x₁+a₂x₂ → a₁y₁+a₂y₂)</div>';
+
+  resultsEl.innerHTML = html;
+}
+function drawPropsCanvas(){
+  const hSrc = getHSource();
+  if(!hSrc){
+    ctx.clearRect(0,0,VB_W,VB_H);
+    ctx.fillStyle = '#041209'; ctx.fillRect(0,0,VB_W,VB_H);
+    ctx.fillStyle = '#5c8a76'; ctx.font = '20px "IBM Plex Sans Thai", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(state.propsSource === 'conv' ? 'ยังไม่ได้กด COMPUTE CONVOLUTION' : 'แก้สมการที่ error ก่อน', VB_W/2, VB_H/2);
+    const legend = document.getElementById('legend'); legend.innerHTML = '';
+    return;
+  }
+  const pad = Math.max(1, (hSrc.domainHi-hSrc.domainLo)*0.25);
+  const tMin = hSrc.domainLo - pad, tMax = hSrc.domainHi + pad;
+  const points = sampleGeneric(hSrc.evalAt, tMin, tMax, N_SAMPLES);
+  const seriesList = [{ points, color:'#c792ea', label:'h(t) = '+hSrc.label, impulses: hSrc.impulses }];
+  const legend = document.getElementById('legend');
+  legend.innerHTML = `<span><span class="swatch" style="background:#c792ea;"></span>h(t) = ${hSrc.label}</span>`;
+  const [yMin, yMax] = autoRangeY(seriesList);
+  drawScope(seriesList, tMin, tMax, yMin, yMax);
+}
+
 /* ---------------- UI wiring ---------------- */
 function buildPresets(){
   const row = document.getElementById('presetRow');
@@ -860,6 +1298,13 @@ document.querySelectorAll('.tab').forEach(tab=>{
       state.exprG = document.getElementById('exprG').value;
       syncSimRange();
     }
+    if(state.mode === 'props'){
+      state.exprF = document.getElementById('exprF').value;
+      state.exprG = document.getElementById('exprG').value;
+      render();
+      runPropertiesCheck();
+      return;
+    }
     render();
   };
 });
@@ -875,6 +1320,22 @@ document.getElementById('simSpeed').addEventListener('change', e=>{
   state.simSpeed = Math.max(0.1, parseFloat(e.target.value) || 1.5);
 });
 document.getElementById('simLoop').addEventListener('change', e=>{ state.simLoop = e.target.checked; });
+
+document.querySelectorAll('.srcBtn').forEach(btn=>{
+  btn.onclick = () => {
+    document.querySelectorAll('.srcBtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.propsSource = btn.dataset.src;
+    document.getElementById('propsResults').innerHTML = '';
+    render();
+  };
+});
+document.getElementById('runCheckBtn').onclick = () => {
+  state.exprF = document.getElementById('exprF').value;
+  state.exprG = document.getElementById('exprG').value;
+  render();
+  runPropertiesCheck();
+};
 
 document.getElementById('tMin').addEventListener('change', e=>{ state.tMin = parseFloat(e.target.value)||0; render(); });
 document.getElementById('tMax').addEventListener('change', e=>{ state.tMax = parseFloat(e.target.value)||0; render(); });
