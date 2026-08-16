@@ -102,6 +102,7 @@ const CUSTOM_FNS = {
   rect: (x, w=1) => (Math.abs(x) < w/2 ? 1 : 0),
   tri:  (x, w=1) => (Math.abs(x) < w ? 1 - Math.abs(x)/w : 0),
   sign: (x) => (x > 0 ? 1 : x < 0 ? -1 : 0),
+  delta: (x) => 0,
 };
 function compile(expr){ return math.parse(expr).compile(); }
 function round6(x){ return Math.round(x*1e6)/1e6; }
@@ -122,14 +123,14 @@ function evalConst(expr){
 }
 function extractBreakpoints(expr){
   const bps = new Set();
-  const re = /\b(u|r|rect|tri)\s*\(([^()]*)\)/g;
+  const re = /\b(u|r|rect|tri|delta)\s*\(([^()]*)\)/g;
   let m;
   while((m = re.exec(expr))){
     const fn = m[1];
     const args = m[2].split(',').map(s=>s.trim());
     const shift = extractShift(args[0]);
     if(shift === null) continue;
-    if(fn === 'u' || fn === 'r'){
+    if(fn === 'u' || fn === 'r' || fn === 'delta'){
       bps.add(round6(shift));
     } else if(fn === 'rect'){
       const w = args[1] !== undefined ? evalConst(args[1]) : 1;
@@ -140,6 +141,45 @@ function extractBreakpoints(expr){
     }
   }
   return [...bps].sort((a,b)=>a-b);
+}
+// splits an expression into top-level +/- terms, respecting parenthesis depth
+function splitTopLevelTerms(expr){
+  let s = expr.trim();
+  if(s[0] !== '+' && s[0] !== '-') s = '+' + s;
+  const terms = [];
+  let depth = 0, curSign = null, curStart = null;
+  for(let i=0;i<s.length;i++){
+    const c = s[i];
+    if(c === '(') depth++;
+    else if(c === ')') depth--;
+    else if(depth === 0 && (c === '+' || c === '-')){
+      if(curSign !== null) terms.push({sign: curSign, text: s.slice(curStart, i).trim()});
+      curSign = c; curStart = i+1;
+    }
+  }
+  if(curSign !== null) terms.push({sign: curSign, text: s.slice(curStart).trim()});
+  return terms.filter(t => t.text.length > 0);
+}
+// pulls out pure "coef * delta(shift)" terms; returns {impulses, remainderExpr}
+function extractImpulses(expr){
+  const terms = splitTopLevelTerms(expr);
+  const impulses = [];
+  const remainder = [];
+  for(const term of terms){
+    const m = term.text.match(/delta\s*\(([^()]*)\)\s*$/);
+    if(m){
+      let prefix = term.text.slice(0, m.index).replace(/\*\s*$/, '').trim();
+      const coefVal = prefix === '' ? 1 : evalConst(prefix);
+      const shift = extractShift(m[1]);
+      if(coefVal !== null && shift !== null){
+        impulses.push({ coef: term.sign === '-' ? -coefVal : coefVal, shift: round6(shift) });
+        continue;
+      }
+    }
+    remainder.push(term.sign + term.text);
+  }
+  const remainderExpr = remainder.length ? remainder.join(' ') : '0';
+  return { impulses, remainderExpr };
 }
 function computeCaseIntervals(bpsF, bpsG){
   const critical = new Set();
@@ -153,8 +193,8 @@ function computeCaseIntervals(bpsF, bpsG){
   return intervals;
 }
 
-/* ---------------- numeric convolution y(t) via trapezoid over tau ---------------- */
-function convAt(codeF, codeG, t, tauMin, tauMax, n){
+/* ---------------- numeric convolution y(t) via trapezoid over tau, plus impulse sifting ---------------- */
+function convAt(codeF, codeG, t, tauMin, tauMax, n, impF, impG){
   const dTau = (tauMax-tauMin)/n;
   let sum=0;
   for(let i=0;i<=n;i++){
@@ -165,7 +205,16 @@ function convAt(codeF, codeG, t, tauMin, tauMax, n){
     const w = (i===0||i===n)?0.5:1;
     sum += w*fv*gv;
   }
-  return sum*dTau;
+  let val = sum*dTau;
+  (impG||[]).forEach(imp=>{
+    let fv; try{ fv = codeF.evaluate({...CUSTOM_FNS, t: t-imp.shift}); if(!Number.isFinite(fv)) fv=0; }catch(e){ fv=0; }
+    val += imp.coef*fv;
+  });
+  (impF||[]).forEach(imp=>{
+    let gv; try{ gv = codeG.evaluate({...CUSTOM_FNS, t: t-imp.shift}); if(!Number.isFinite(gv)) gv=0; }catch(e){ gv=0; }
+    val += imp.coef*gv;
+  });
+  return val;
 }
 
 /* ---------------- least-squares polynomial fit ---------------- */
@@ -255,15 +304,36 @@ function runAnalysis(){
   const summaryEl = document.getElementById('summary');
   casesEl.innerHTML = '';
 
-  let codeF, codeG;
-  try{ codeF = compile(exprF); }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ f(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
-  try{ codeG = compile(exprG); }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ g(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
+  let impF, impG, codeF, codeG;
+  try{
+    const exF = extractImpulses(exprF);
+    impF = exF.impulses;
+    codeF = compile(exF.remainderExpr);
+  }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ f(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
+  try{
+    const exG = extractImpulses(exprG);
+    impG = exG.impulses;
+    codeG = compile(exG.remainderExpr);
+  }catch(e){ casesEl.innerHTML = '<div class="caseBox">พาร์สสมการ g(t) ไม่สำเร็จ: '+e.message+'</div>'; return; }
 
   const bpsF = extractBreakpoints(exprF);
   const bpsG = extractBreakpoints(exprG);
   bpInfoEl.innerHTML =
     '<div class="bpRow">จุดหักมุมของ f(t): <b>' + (bpsF.length? bpsF.join(', ') : '(ไม่พบ — อาจเป็นฟังก์ชันต่อเนื่อง เช่น sin/cos/exp)') + '</b></div>' +
     '<div class="bpRow">จุดหักมุมของ g(t): <b>' + (bpsG.length? bpsG.join(', ') : '(ไม่พบ — อาจเป็นฟังก์ชันต่อเนื่อง เช่น sin/cos/exp)') + '</b></div>';
+
+  if(impF.length || impG.length){
+    const outImp = [];
+    for(const fi of impF) for(const gi of impG) outImp.push({coef: round6(fi.coef*gi.coef), shift: round6(fi.shift+gi.shift)});
+    let impNote = '<div class="bpRow">ตรวจพบ δ(t) ใน ' + (impF.length && impG.length ? 'ทั้ง f(t) และ g(t)' : (impF.length ? 'f(t)' : 'g(t)')) +
+      ' — ใช้คุณสมบัติ sifting (f∗δ(t−a) = f(t−a)) ในการคำนวณแทนการอินทิเกรตเชิงตัวเลขตรงๆ</div>';
+    if(outImp.length){
+      impNote += '<div class="bpRow" style="color:#ff8fd0;">⚡ ผลลัพธ์ y(t) จะมีอิมพัลส์ใหม่เกิดขึ้นด้วย ที่: ' +
+        outImp.map(o => round6(o.coef)+'·δ(t−('+o.shift+'))').join(' , ') +
+        ' (จาก δ ของ f คูณกับ δ ของ g — จุดเดี่ยวเหล่านี้ไม่แสดงเป็นสมการพหุนามในตารางด้านล่าง เพราะเป็นอิมพัลส์ ไม่ใช่ฟังก์ชันต่อเนื่อง)</div>';
+    }
+    bpInfoEl.innerHTML += impNote;
+  }
 
   const intervals = computeCaseIntervals(bpsF, bpsG);
   summaryEl.textContent = '💡 การ Convolution นี้แบ่งได้ทั้งหมด ' + intervals.length + ' case จากจุดตัดที่เกิดจากจุดหักมุมของ f(t) และ g(t) รวมกัน';
@@ -282,7 +352,7 @@ function runAnalysis(){
     const NPTS = 10;
     const ts = [];
     for(let i=0;i<NPTS;i++) ts.push(sampleLo + (sampleHi-sampleLo)*i/(NPTS-1));
-    const ys = ts.map(t => convAt(codeF, codeG, t, tauMin, tauMax, N_INTEGRATE));
+    const ys = ts.map(t => convAt(codeF, codeG, t, tauMin, tauMax, N_INTEGRATE, impF, impG));
 
     const allZero = ys.every(y => Math.abs(y) < 1e-6);
     const fit = allZero ? {coeffs:[0], deg:0, rmse:0} : fitBestPoly(ts, ys);
